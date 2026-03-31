@@ -1,0 +1,117 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+
+# API Keys and secrets
+secrets/
+keys/
+*.key
+*.pem
+*.crt
+credentials.json
+service-account.json
+
+# LangChain specific
+langchain.db
+langchain_cache/
+chroma_db/
+pinecone_data/
+weaviate_data/
+qdrant_data/
+*.vectorstore
+
+# FastAPI specific
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+logfile/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Data files
+*.csv
+*.parquet
+*.feather
+data/
+datasets/
+models/
+*.pkl
+*.joblib
+
+# Vector databases
+chroma/
+milvus/
+lancedb/
+
+# LLM cache
+.cache/
+.cache/huggingface/
+.cache/torch/
+.cache/langchain/
+
+# Testing
+test_results/
+test_reports/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+.env
