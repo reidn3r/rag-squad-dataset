@@ -8,7 +8,7 @@ def read_system_prompt() -> ChatPromptTemplate:
   sys_prompt = read(sys_prompt_path)
   return ChatPromptTemplate.from_messages([
     ("system", sys_prompt),
-    ("assistant", "[CONTEXTO]\n{context}"),
+    ("system", "[CONTEXTO]\n{context}"),
     ("user", "{input}"),
   ])
 

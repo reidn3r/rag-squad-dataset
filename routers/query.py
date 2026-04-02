@@ -7,8 +7,6 @@ from modules.database import search
 query_router = APIRouter(prefix='/query')
 
 @query_router.post('/')
-def query(
-  data: QueryModel
-):
+async def query(data: QueryModel):
   context = search(data.query)
-  return generate(query=data.query, context=context)
+  return await generate(query=data.query, context=context)

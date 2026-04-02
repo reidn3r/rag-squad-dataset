@@ -1,12 +1,17 @@
-from templates.prompts import read_reranking_prompt, read_system_prompt
+from templates.prompts import read_reranking_prompt
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from models.query_model import QueryRetrievalModel
 from dotenv import load_dotenv
+from nemoguardrails import RailsConfig, LLMRails
+import logging
 import json
 import os
 
+logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
+
+config = RailsConfig.from_path("./config")
 
 llm = ChatOpenAI(
   api_key=os.getenv("LLM_API_KEY"),      
@@ -15,30 +20,37 @@ llm = ChatOpenAI(
   temperature=0.8
 )
 
-def generate(
+rails = LLMRails(config)
+
+async def generate(
   query: str,
   context: list[QueryRetrievalModel]
-  ):
-  context = rerank(query, context)
-  
-  prompt = read_system_prompt()
-  parser = StrOutputParser()
-  
-  chain = prompt | llm | parser  
-  response = chain.invoke({
-    "context": f'[CONTEXTO]\n{context}',
-    "input": query,
-  })  
-  return response
+):
+  context = await rerank(query, context)
 
-def rerank(query: str, context: list[QueryRetrievalModel]) -> list[QueryRetrievalModel]:
+  response = await rails.generate_async(
+    messages=[
+      {
+        "role": "system",
+        "content": f"[CONTEXTO]\n{format_rag_context(context)}"
+      },
+      {
+        "role": "user",
+        "content": query,
+      },
+    ]
+  )
+  
+  return response["content"]
+
+async def rerank(query: str, context: list[QueryRetrievalModel]) -> list[QueryRetrievalModel]:
   prompt = read_reranking_prompt()
   parser = StrOutputParser()
 
   rag_context = format_rag_context(context)
 
   chain = prompt | llm | parser
-  result = chain.invoke({
+  result = await chain.ainvoke({
     "context": rag_context,
     "input": query,
   })
