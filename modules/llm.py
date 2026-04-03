@@ -17,7 +17,8 @@ llm = ChatOpenAI(
   api_key=os.getenv("LLM_API_KEY"),      
   base_url=os.getenv("LLM_BASE_URL"),
   model=os.getenv("LLM_MODEL"),
-  temperature=0.8
+  temperature=0.8,
+  streaming=True
 )
 
 rails = LLMRails(config)
@@ -30,19 +31,30 @@ async def generate(
 
   response = await rails.generate_async(
     messages=[
-      {
-        "role": "system",
-        "content": f"[CONTEXTO]\n{format_rag_context(context)}"
-      },
-      {
-        "role": "user",
-        "content": query,
-      },
-    ]
+      { "role": "system", "content": f"[CONTEXTO]\n{format_rag_context(context)}"},
+      { "role": "user", "content": query },
+    ],
   )
   
   return response["content"]
 
+async def stream(
+    query: str,
+    context: list[QueryRetrievalModel]
+):
+    context = await rerank(query, context)
+    messages = [
+      {"role": "system", "content": f"[CONTEXTO]\n{format_rag_context(context)}"},
+      {"role": "user", "content": query},
+    ]
+
+    async for chunk in rails.stream_async(
+      messages=messages,
+      options={"log": {"activated_rails": True}},
+      ):
+      yield f"data: {chunk}\n\n"
+    yield "data: [DONE]\n\n"
+    
 async def rerank(query: str, context: list[QueryRetrievalModel]) -> list[QueryRetrievalModel]:
   prompt = read_reranking_prompt()
   parser = StrOutputParser()
