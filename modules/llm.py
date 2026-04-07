@@ -1,61 +1,65 @@
-from templates.prompts import read_reranking_prompt
+from templates.prompts import read_reranking_prompt, read_system_prompt, read_rails_prompt
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from models.query_model import QueryRetrievalModel
 from dotenv import load_dotenv
-from nemoguardrails import RailsConfig, LLMRails
-import logging
 import json
+from langchain_core.messages import SystemMessage, HumanMessage
 import os
 
-logging.basicConfig(level=logging.DEBUG)
 load_dotenv()
-
-config = RailsConfig.from_path("./config")
 
 llm = ChatOpenAI(
   api_key=os.getenv("LLM_API_KEY"),      
   base_url=os.getenv("LLM_BASE_URL"),
   model=os.getenv("LLM_MODEL"),
-  temperature=0.8,
+  temperature=0.9,
   streaming=True
 )
 
-rails = LLMRails(config)
+guard = ChatOpenAI(
+  api_key=os.getenv("LLM_API_KEY"),
+  base_url=os.getenv("LLM_BASE_URL"),
+  model="openai/gpt-oss-safeguard-20b",
+  temperature=0.0,
+)
 
 async def generate(
   query: str,
   context: list[QueryRetrievalModel]
 ):
-  context = await rerank(query, context)
-
-  response = await rails.generate_async(
-    messages=[
-      { "role": "system", "content": f"[CONTEXTO]\n{format_rag_context(context)}"},
-      { "role": "user", "content": query },
-    ],
-  )
+  if not await check_safety(query):
+    return "Não posso responder a essa pergunta."
   
-  return response["content"]
+  prompt = read_system_prompt()
+  parser = StrOutputParser()
+
+  context = await rerank(query, context, -1)
+
+  chain = prompt | llm | parser
+  response = await chain.ainvoke({
+    "context": format_rag_context(context),
+    "input": query,
+  })
+
+  return response
 
 async def stream(
-    query: str,
-    context: list[QueryRetrievalModel]
+  query: str,
+  context: list[QueryRetrievalModel]
 ):
-    context = await rerank(query, context)
-    messages = [
-      {"role": "system", "content": f"[CONTEXTO]\n{format_rag_context(context)}"},
-      {"role": "user", "content": query},
-    ]
+  prompt = read_system_prompt()
+  context = await rerank(query, context, 2)
 
-    async for chunk in rails.stream_async(
-      messages=messages,
-      options={"log": {"activated_rails": True}},
-      ):
-      yield f"data: {chunk}\n\n"
-    yield "data: [DONE]\n\n"
+  chain = prompt | llm 
+  async for chunk in chain.astream({
+    "input": query,
+    "context": format_rag_context(context)
+  }):
+    yield f"data: {chunk.content}\n\n"
+  yield "data: [DONE]\n\n"
     
-async def rerank(query: str, context: list[QueryRetrievalModel]) -> list[QueryRetrievalModel]:
+async def rerank(query: str, context: list[QueryRetrievalModel], top_k: int = -1) -> list[QueryRetrievalModel]:
   prompt = read_reranking_prompt()
   parser = StrOutputParser()
 
@@ -68,8 +72,18 @@ async def rerank(query: str, context: list[QueryRetrievalModel]) -> list[QueryRe
   })
 
   indexes = json.loads(result)
-  return [context[i] for i in indexes]
+  selected = len(indexes) if top_k == -1 else top_k
+  return [context[i] for i in indexes][:selected]
 
+async def check_safety(text: str) -> bool:
+  prompt = read_rails_prompt()
+  chain = prompt | guard
+  
+  response = await chain.ainvoke([
+    ("input", text)
+  ])
+
+  return response.content.strip().upper().startswith("SAFE")
 
 def format_rag_context(context: list[QueryRetrievalModel]) -> str:
   return "\n\n".join([
